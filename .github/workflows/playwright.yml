@@ -7,8 +7,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-test:
-    timeout-minutes: 60
+
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,11 +18,37 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '25'
 
       - name: Build Project
-        run: mvn -B clean install -DskipTests --no-transfer-progress
+        run: mvn clean install -DskipTests --no-transfer-progress
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-build
+          path: target/
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-build
+          path: target/
 
       - name: Install Playwright Browsers
         run: mvn exec:java -e -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps"
@@ -40,13 +66,19 @@ jobs:
             playwright-report/
 
   deploy:
-    needs: build-test
+    needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-build
+          path: target/
 
       - name: Deploy Application
         run: |
